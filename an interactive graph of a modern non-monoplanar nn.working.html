@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Advanced ML Model Decision Matrix</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { 
+      margin: 0; 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      overflow: hidden;
+      background: #0d1117; 
+    }
+    svg { 
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%; 
+      height: 100%; 
+      background: #0d1117; 
+    }
+    .node {
+      stroke: #fff; 
+      stroke-width: 1.5px; 
+      transition: r 0.3s ease-out, fill 0.3s;
+    }
+    .node:hover { 
+      stroke: #fff; 
+      stroke-width: 3px;
+      filter: brightness(1.2);
+    }
+    .node.selected {
+      stroke: #fff;
+      stroke-width: 3px;
+      filter: url(#glow);
+    }
+    .node-label { 
+      fill: white; 
+      font-size: 11px; 
+      pointer-events: none;
+      text-shadow: 0 0 3px rgba(0,0,0,0.8);
+    }
+    .link {
+      transition: stroke-opacity 0.3s, stroke-width 0.3s;
+    }
+    .exit-ring {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 2px;
+      stroke-dasharray: 5, 5;
+    }
+    .zone-circle {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.15);
+      stroke-width: 1px;
+      stroke-dasharray: 3, 3;
+    }
+    .orbit-ring {
+      fill: none;
+      stroke-width: 0.5px;
+      opacity: 0.3;
+    }
+    .smoke-particle {
+      mix-blend-mode: screen;
+      opacity: 0.05;
+      filter: blur(5px);
+      pointer-events: none;
+    }
+    .tooltip {
+      position: absolute;
+      background: rgba(30,30,30,0.95);
+      padding: 12px;
+      border-radius: 6px;
+      color: white;
+      font-size: 13px;
+      pointer-events: auto; /* Changed to allow interaction */
+      opacity: 0;
+      transition: opacity 0.3s;
+      max-width: 280px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.2);
+      z-index: 1000;
+    }
+    .tooltip p {
+      margin: 6px 0 0 0;
+      line-height: 1.4;
+    }
+    .tooltip strong {
+      color: #fff;
+      font-weight: bold;
+    }
+    .controls-container {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      max-width: 900px;
+      z-index: 1000;
+      transition: all 0.3s ease-out;
+    }
+    .controls {
+      background: rgba(30,30,30,0.7);
+      padding: 10px 20px;
+      border-radius: 5px;
+      color: white;
+      overflow-y: auto;
+      border: 1px solid rgba(255,255,255,0.5);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      max-height: 230px;
+      transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    }
+    .controls.folded {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      opacity: 0;
+      overflow: hidden;
+    }
+    .controls-toggle {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      background: rgba(30,30,30,0.8);
+      color: white;
+      border-radius: 5px 5px 0 0;
+      padding: 5px;
+      cursor: pointer;
+      margin-bottom: -1px;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-bottom: none;
+      width: 120px;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 12px;
+      user-select: none;
+    }
+    .controls-toggle:hover {
+      background: rgba(40,40,40,0.9);
+    }
+    .legend-box {
+      fill: rgba(20,20,20,0.7);
+      stroke: white;
+      stroke-width: 1px;
+      stroke-opacity: 0.5;
+      rx: 5;
+      ry: 5;
+    }
+    .info-panel {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(30,30,30,0.7);
+      padding: 15px;
+      border-radius: 5px;
+      color: white;
+      font-size: 12px;
+      max-width: 280px;
+      border: 1px solid rgba(255,255,255,0.3);
+      z-index: 1000;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .info-panel h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.3);
+      padding-bottom: 5px;
+    }
+    .info-panel p {
+      line-height: 1.4;
+      margin: 0 0 10px 0;
+    }
+    .hf-logo {
+      position: fixed;
+      bottom: -60px; /* Moved down by 80px from original 20px position */
+      right: -20px; /* Moved right by 40px from original 20px position */
+      z-index:-21;
+      opacity: 0.8;
+      pointer-events: none;
+      transform: scale(0.4) translate(20%, 0%); /* 40% of original size with slight position adjustment */
+    }
+    .hf-logo text {
+      font-size: 10px;
+      fill: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="tooltip"></div>
+  <div class="info-panel">
+    <h3>Probabilistic Neural Network Model</h3>
+    <p>
+      This visualization demonstrates a probabilistic linking mechanism to construct neural network architecture. 
+      Links between nodes are formed with decreasing probability as layers progress deeper, mimicking synaptic pruning in biological neural networks.
+    </p>
+    <p>
+      Each layer's connectivity follows its own probability distribution, creating a unique but reproducible network topology that balances density and efficiency.
+    </p>
+  </div>
+  
+  <svg class="hf-logo" width="60" height="48" viewBox="0 0 70 80">
+    <!-- HF Logo - Conjoined H and F -->
+    <g fill="white">
+      <!-- Conjoined H and F -->
+      <rect x="10" y="10" width="8" height="40" />
+      <rect x="28" y="10" width="8" height="40" /> <!-- F upright -->
+      <rect x="18" y="30" width="32" height="8" /> <!-- Center bar -->
+      <rect x="36" y="10" width="24" height="8" /> <!-- F top bar -->
+      <rect x="36" y="30" width="16" height="8" /> <!-- F lower clef -->
+    </g>
+    
+    <text x="10" y="65" font-weight="bold">Laboratories</text>
+    <line x1="10" y1="70" x2="70" y2="70" stroke="white" stroke-width="1" />
+    <text x="10" y="78" font-size="8">© '25 Q3</text>
+  </svg>
+  <div class="controls-container">
+    <div class="controls-toggle" id="controlsToggle">Show Controls ▲</div>
+    <div class="controls" id="controlsPanel">
+      <div style="font-weight: bold; width: 100%; text-align: center; margin-bottom: 10px;">Controls</div>
+      
+      <div style="flex: 1; min-width: 180px;">
+        <div style="font-weight: bold;">Mouse:</div>
+        <div>Zoom: Scroll to zoom in/out</div>
+        <div>Pan: Hold Alt+drag (or middle button)</div>
+        <div>Rotate: Click and drag background</div>
+        <div>Move: Drag individual nodes</div>
+      </div>
+      
+      <div style="flex: 1; min-width: 180px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 20px;">
+        <div style="font-weight: bold;">Keyboard:</div>
+        <div>+/- : Zoom in/out</div>
+        <div>Arrow Keys: Pan view</div>
+        <div>R/L : Rotate clockwise/counter</div>
+        <div>H : Reset view • Space: Toggle rotation</div>
+        <div>F : Focus on hub (exit ring center)</div>
+        <div>C : Toggle controls panel</div>
+      </div>
+      
+      <div style="flex: 1; min-width: 180px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 20px;">
+        <div style="font-weight: bold;">Node Categories (Press Key):</div>
+        <div>
+          <span style="color: #ff5e5e;">1</span>: Entry • 
+          <span style="color: #50c4fa;">2</span>: Processing • 
+          <span style="color: #42b883;">3</span>: Agents
+        </div>
+        <div>
+          <span style="color: #e9c46a;">4</span>: Planning • 
+          <span style="color: #8a5cf5;">5</span>: Evaluation • 
+          <span style="color: #ff006e;">0</span>: Exit
+        </div>
+        <div>
+          <span style="color: #3a86ff;">6</span>: Feature Extraction • 
+          <span style="color: #fb5607;">7</span>: Attention
+        </div>
+        <div>
+          <span style="color: #4cc9f0;">8</span>: Memory • 
+          <span style="color: #f46036;">9</span>: Decision Matrix
+        </div>
+        <div style="margin-top: 5px;">
+          <label style="display: flex; align-items: center;">
+            <input type="checkbox" id="enableRotation" checked style="margin-right: 5px;"> 
+            Enable Rotation
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <svg id="visualization">
+    <defs>
+      <filter id="glow" x="-50%" y="-50%" width="350%" height="350%">
+        <feGaussianBlur stdDeviation="5" result="blur"/>
+        <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+      </filter>
+    </defs>
+    <g id="container"></g>
+  </svg>
+
+  <script>
+    // Define global variables outside DOMContentLoaded
+    let rotationAngle = 0;
+    let isDragging = false;
+    let startAngle = 0;
+    let rotationEnabled = true;
+    let currentTransform = { x: 0, y: 0, k: 1 };
+    let highlightedGroup = null;
+    let highlightTimeout = null;
+    let center = { x: window.innerWidth/2, y: window.innerHeight/2 }; // Initialize with window dimensions
+    let container;
+    let rotationHub = { x: window.innerWidth/2, y: window.innerHeight/2 }; // Initialize with window dimensions
+    let applyTransform;
+    let highlightNodeGroup;
+    
+    // Add safety initialization for functions
+    applyTransform = function() {
+      if (container) {
+        const rotationTransform = `rotate(${rotationAngle * 180 / Math.PI}, ${rotationHub.x}, ${rotationHub.y})`;
+        container.attr("transform", 
+          `translate(${currentTransform.x},${currentTransform.y}) scale(${currentTransform.k}) ${rotationTransform}`
+        );
+      }
+    };
+    
+    // Set up keyboard navigation constants
+    const zoomStep = 0.2;
+    const panStep = 20;
+    const rotateStep = Math.PI / 36;
+    
+    // Global keyboard event listener
+    document.addEventListener('keydown', (event) => {
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      console.log('Key pressed:', event.key); // Debug logging
+      
+      switch(event.key) {
+        case '+':
+        case '=':
+          currentTransform.k = Math.min(currentTransform.k + zoomStep, 5);
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case '-':
+        case '_':
+          currentTransform.k = Math.max(currentTransform.k - zoomStep, 0.2);
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'ArrowLeft':
+          currentTransform.x += panStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'ArrowRight':
+          currentTransform.x -= panStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'ArrowUp':
+          currentTransform.y += panStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'ArrowDown':
+          currentTransform.y -= panStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'r':
+        case 'R':
+          rotationAngle += rotateStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'l':
+        case 'L':
+          rotationAngle -= rotateStep;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case 'h':
+        case 'H':
+          currentTransform = { x: 0, y: 0, k: 1 };
+          rotationAngle = 0;
+          applyTransform();
+          event.preventDefault();
+          break;
+          
+        case ' ':
+          rotationEnabled = !rotationEnabled;
+          if (document.getElementById('enableRotation')) {
+            document.getElementById('enableRotation').checked = rotationEnabled;
+          }
+          event.preventDefault();
+          break;
+          
+        case 'f':
+        case 'F':
+          const duration = 750;
+          const targetTransform = { x: 0, y: 0, k: 1 };
+          
+          // Only run if d3 is available
+          if (window.d3) {
+            d3.transition()
+              .duration(duration)
+              .tween("transform", () => {
+                const ix = d3.interpolate(currentTransform.x, targetTransform.x);
+                const iy = d3.interpolate(currentTransform.y, targetTransform.y);
+                const ik = d3.interpolate(currentTransform.k, targetTransform.k);
+                const ir = d3.interpolate(rotationAngle, 0);
+                
+                return (t) => {
+                  currentTransform = { x: ix(t), y: iy(t), k: ik(t) };
+                  rotationAngle = ir(t);
+                  applyTransform();
+                };
+              });
+          }
+          event.preventDefault();
+          break;
+          
+        // Number keys for group highlighting
+        case '0': 
+          if (highlightNodeGroup) highlightNodeGroup(9); 
+          event.preventDefault(); 
+          break;
+        case '1': 
+          if (highlightNodeGroup) highlightNodeGroup(0); 
+          event.preventDefault(); 
+          break;
+        case '2': 
+          if (highlightNodeGroup) highlightNodeGroup(1); 
+          event.preventDefault(); 
+          break;
+        case '3': 
+          if (highlightNodeGroup) highlightNodeGroup(2); 
+          event.preventDefault(); 
+          break;
+        case '4': 
+          if (highlightNodeGroup) highlightNodeGroup(3); 
+          event.preventDefault(); 
+          break;
+        case '5': 
+          if (highlightNodeGroup) highlightNodeGroup(4); 
+          event.preventDefault(); 
+          break;
+        case '6': 
+          if (highlightNodeGroup) highlightNodeGroup(6); 
+          event.preventDefault(); 
+          break;
+        case '7': 
+          if (highlightNodeGroup) highlightNodeGroup(7); 
+          event.preventDefault(); 
+          break;
+        case '8': 
+          if (highlightNodeGroup) highlightNodeGroup(8); 
+          event.preventDefault(); 
+          break;
+        case '9': 
+          if (highlightNodeGroup) highlightNodeGroup(5); 
+          event.preventDefault(); 
+          break;
+          
+        // Toggle controls with C key
+        case 'c':
+        case 'C':
+          if (document.getElementById('controlsPanel') && document.getElementById('controlsToggle')) {
+            const toggleEvent = new Event('click');
+            document.getElementById('controlsToggle').dispatchEvent(toggleEvent);
+          }
+          event.preventDefault();
+          break;
+      }
+    });
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      // Define node groups with semantic meaning
+      const GROUP_NAMES = [
+        "Entry Point", // 0
+        "Data Processing", // 1
+        "Core Agents", // 2
+        "Planning & Reasoning", // 3
+        "Evaluation", // 4
+        "Decision Matrix", // 5
+        "Feature Extraction", // 6
+        "Attention Mechanism", // 7
+        "Memory System", // 8
+        "Exit Points" // 9
+      ];
+
+      const nodes = [
+        // Center - Entry Point (Group 0)
+        { id: "A0", label: "Intent / Entry", group: 0, desc: "Central entry point for all requests, coordinates initial processing and routing", layer: 0 },
+        
+        // First Layer - Data Processing (Group 1)
+        { id: "A1a", label: "Memory Recall", group: 1, desc: "Retrieves relevant past experiences and learned patterns", layer: 1 },
+        { id: "A1b", label: "Policy Fragment", group: 1, desc: "Applies governance rules and operational constraints", layer: 1 },
+        { id: "A1c", label: "Tool Declaration", group: 1, desc: "Identifies available tools and their capabilities", layer: 1 },
+        { id: "A1d", label: "User History", group: 1, desc: "Accesses contextual information about user preferences and past interactions", layer: 1 },
+        { id: "A1e", label: "Input Vectorization", group: 1, desc: "Transforms raw input into numerical representations", layer: 1 },
+        { id: "A1f", label: "Context Window", group: 1, desc: "Manages the scope of relevant information for processing", layer: 1 },
+        
+        // Second Layer - Core Agents (Group 2)
+        { id: "A2a", label: "Planner Agent", group: 2, desc: "Develops sequential execution strategies to achieve goals", layer: 2 },
+        { id: "A2b", label: "Reasoner Agent", group: 2, desc: "Applies logical inference to derive conclusions from available information", layer: 2 },
+        { id: "A2c", label: "Retriever Agent", group: 2, desc: "Searches and extracts relevant information from various sources", layer: 2 },
+        { id: "A2d", label: "Validator Agent", group: 2, desc: "Verifies accuracy and consistency of generated content", layer: 2 },
+        { id: "A2e", label: "Critic Agent", group: 2, desc: "Identifies potential weaknesses in solutions", layer: 2 },
+        { id: "A2f", label: "Synthesizer Agent", group: 2, desc: "Combines multiple inputs into coherent outputs", layer: 2 },
+        { id: "A2g", label: "Contextual Agent", group: 2, desc: "Maintains awareness of broader situational factors", layer: 2 },
+        
+        // Feature Extraction (Group 6)
+        { id: "F1a", label: "Semantic Parser", group: 6, desc: "Extracts meaning and relationships from input text", layer: 2 },
+        { id: "F1b", label: "Entity Recognition", group: 6, desc: "Identifies named entities and their types", layer: 2 },
+        { id: "F1c", label: "Sentiment Analysis", group: 6, desc: "Determines emotional tone of input", layer: 2 },
+        { id: "F1d", label: "Intent Classifier", group: 6, desc: "Categorizes the purpose behind user requests", layer: 2 },
+        
+        // Third Layer - Planning & Reasoning (Group 3)
+        { id: "A3a", label: "Plan A", group: 3, desc: "Primary execution strategy for achieving goal", layer: 3 },
+        { id: "A3b", label: "Plan B", group: 3, desc: "Alternative execution strategy if primary plan fails", layer: 3 },
+        { id: "A3c", label: "Policy Adjustment", group: 3, desc: "Dynamically modifies operational constraints based on context", layer: 3 },
+        { id: "A3d", label: "Retrieval Refinement", group: 3, desc: "Iteratively improves information gathering based on feedback", layer: 3 },
+        { id: "A3e", label: "Tool Suggestion", group: 3, desc: "Recommends appropriate tools for current task", layer: 3 },
+        { id: "A3f", label: "Uncertainty Handling", group: 3, desc: "Manages ambiguous or incomplete information", layer: 3 },
+        { id: "A3g", label: "Decision Tree", group: 3, desc: "Maps potential decision paths and outcomes", layer: 3 },
+        { id: "A3h", label: "Priority Ranking", group: 3, desc: "Assigns importance levels to subtasks", layer: 3 },
+        
+        // Attention Mechanism (Group 7)
+        { id: "T1a", label: "Self-Attention", group: 7, desc: "Weighs relationships between all elements in input", layer: 3 },
+        { id: "T1b", label: "Cross-Attention", group: 7, desc: "Relates elements across different data sources", layer: 3 },
+        { id: "T1c", label: "Multi-Head Attention", group: 7, desc: "Processes information in parallel across different representation subspaces", layer: 3 },
+        
+        // Fourth Layer - Evaluation (Group 4)
+        { id: "A4a", label: "Output Template", group: 4, desc: "Structures response format for consistency", layer: 4 },
+        { id: "A4b", label: "Justification", group: 4, desc: "Provides reasoning for conclusions and recommendations", layer: 4 },
+        { id: "A4c", label: "Self-Check", group: 4, desc: "Validates output against quality criteria", layer: 4 },
+        { id: "A4d", label: "Memory Write", group: 4, desc: "Records relevant information for future reference", layer: 4 },
+        { id: "A4e", label: "Confidence Score", group: 4, desc: "Quantifies certainty level in generated output", layer: 4 },
+        { id: "A4f", label: "Error Detection", group: 4, desc: "Identifies potential mistakes before final output", layer: 4 },
+        { id: "A4g", label: "Optimization Check", group: 4, desc: "Ensures solution meets efficiency criteria", layer: 4 },
+        
+        // Memory Systems (Group 8)
+        { id: "M1a", label: "Episodic Memory", group: 8, desc: "Stores specific past experiences and interactions", layer: 4 },
+        { id: "M1b", label: "Semantic Memory", group: 8, desc: "Maintains factual and conceptual knowledge", layer: 4 },
+        { id: "M1c", label: "Working Memory", group: 8, desc: "Holds currently active information for processing", layer: 4 },
+        { id: "M1d", label: "Knowledge Graph", group: 8, desc: "Represents interconnected concepts and relationships", layer: 4 },
+        
+        // Fifth Layer - Decision Matrix (Group 5)
+        { id: "D1a", label: "Option Generation", group: 5, desc: "Creates comprehensive set of possible actions", layer: 5 },
+        { id: "D1b", label: "Impact Analysis", group: 5, desc: "Evaluates potential consequences of each option", layer: 5 },
+        { id: "D1c", label: "Resource Allocation", group: 5, desc: "Optimizes distribution of computational resources", layer: 5 },
+        { id: "D1d", label: "Risk Assessment", group: 5, desc: "Quantifies likelihood and severity of potential issues", layer: 5 },
+        { id: "D1e", label: "Value Alignment", group: 5, desc: "Ensures outputs match defined ethical principles", layer: 5 },
+        
+        // Exit Points (Group 9)
+        { id: "X1", label: "Execute Tool", group: 9, desc: "Activates external functionality to complete task", layer: 6 },
+        { id: "X2", label: "Return Output", group: 9, desc: "Delivers final result to user", layer: 6 },
+        { id: "X3", label: "Ask Clarification", group: 9, desc: "Requests additional information when input is ambiguous", layer: 6 },
+        { id: "X4", label: "Escalate Issue", group: 9, desc: "Transfers complex problems to appropriate handler", layer: 6 },
+        { id: "X5", label: "Store for Later", group: 9, desc: "Archives information for future processing", layer: 6 },
+        { id: "X6", label: "Feedback Loop", group: 9, desc: "Routes output back into system for refinement", layer: 6 },
+        { id: "X7", label: "Log & Monitor", group: 9, desc: "Records actions for system improvement", layer: 6 },
+        { id: "X8", label: "Trigger Event", group: 9, desc: "Initiates follow-up processes based on output", layer: 6 }
+      ];
+
+      // Generate links programmatically
+      const links = [];
+      
+      // Helper function to add links
+      function addLink(source, target, probability = 1.0) {
+        if (Math.random() < probability) {
+          const sourceNode = nodes.find(n => n.id === source);
+          const targetNode = nodes.find(n => n.id === target);
+          if (sourceNode && targetNode) {
+            links.push({ source: sourceNode, target: targetNode });
+          }
+        }
+      }
+      
+      // 1. Connect entry point to first layer
+      nodes.filter(n => n.layer === 1).forEach(node => {
+        addLink("A0", node.id);
+      });
+      
+      // 2. Connect first layer to second layer
+      nodes.filter(n => n.layer === 1).forEach(source => {
+        nodes.filter(n => n.layer === 2).forEach(target => {
+          addLink(source.id, target.id, 0.7);
+        });
+      });
+      
+      // 3. Connect second layer among themselves
+      const layer2Nodes = nodes.filter(n => n.layer === 2);
+      for (let i = 0; i < layer2Nodes.length; i++) {
+        for (let j = i + 1; j < layer2Nodes.length; j++) {
+          addLink(layer2Nodes[i].id, layer2Nodes[j].id, 0.6);
+        }
+      }
+      
+      // 4. Connect second layer to third layer
+      nodes.filter(n => n.layer === 2).forEach(source => {
+        nodes.filter(n => n.layer === 3).forEach(target => {
+          addLink(source.id, target.id, 0.5);
+        });
+      });
+      
+      // 5. Connect third layer among themselves
+      const layer3Nodes = nodes.filter(n => n.layer === 3);
+      for (let i = 0; i < layer3Nodes.length; i++) {
+        for (let j = i + 1; j < layer3Nodes.length; j++) {
+          addLink(layer3Nodes[i].id, layer3Nodes[j].id, 0.4);
+        }
+      }
+      
+      // 6. Connect third layer to fourth layer
+      nodes.filter(n => n.layer === 3).forEach(source => {
+        nodes.filter(n => n.layer === 4).forEach(target => {
+          addLink(source.id, target.id, 0.35);
+        });
+      });
+      
+      // 7. Connect fourth layer among themselves
+      const layer4Nodes = nodes.filter(n => n.layer === 4);
+      for (let i = 0; i < layer4Nodes.length; i++) {
+        for (let j = i + 1; j < layer4Nodes.length; j++) {
+          addLink(layer4Nodes[i].id, layer4Nodes[j].id, 0.3);
+        }
+      }
+      
+      // 8. Connect fourth layer to fifth layer
+      nodes.filter(n => n.layer === 4).forEach(source => {
+        nodes.filter(n => n.layer === 5).forEach(target => {
+          addLink(source.id, target.id, 0.25);
+        });
+      });
+      
+      // 9. Connect fifth layer among themselves
+      const layer5Nodes = nodes.filter(n => n.layer === 5);
+      for (let i = 0; i < layer5Nodes.length; i++) {
+        for (let j = i + 1; j < layer5Nodes.length; j++) {
+          addLink(layer5Nodes[i].id, layer5Nodes[j].id, 0.2);
+        }
+      }
+      
+      // 10. Connect fifth layer to exit points
+      nodes.filter(n => n.layer === 5).forEach(source => {
+        nodes.filter(n => n.layer === 6).forEach(target => {
+          addLink(source.id, target.id, 0.2);
+        });
+      });
+      
+      // 11. Add important back-linking
+      addLink("A4d", "A1a"); // Memory write back to memory recall
+      addLink("M1a", "A1a");
+      addLink("M1b", "A1a");
+      addLink("M1c", "A1a");
+      addLink("M1d", "A1a");
+      addLink("A4c", "A2b"); // Self-check back to reasoner
+      addLink("A4f", "A2d"); // Error detection back to validator
+      addLink("X6", "A0"); // Feedback loop back to entry
+      addLink("D1e", "A2e"); // Value alignment feedback to critic
+      addLink("D1b", "A3g"); // Impact analysis to decision tree
+      addLink("A4g", "A3h"); // Optimization check to priority ranking
+      addLink("X7", "A1d"); // Log & monitor to user history
+
+      // Set up D3
+      const svg = d3.select("#visualization");
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      center = { x: width / 2, y: height / 2 };
+      container = d3.select("#container");
+      rotationHub = { x: center.x, y: center.y };
+      
+      // Add background click handler to dismiss tooltip
+      svg.append("rect")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("fill", "transparent")
+        .lower() // Send to back so it doesn't block other elements
+        .on("click", (event) => {
+          // Don't trigger if clicking on the tooltip itself
+          if (event.target.closest(".tooltip")) return;
+          
+          // Clear node selection
+          d3.selectAll(".node").classed("selected", false);
+          // Hide tooltip
+          tooltip.style("opacity", 0);
+        });
+      
+      // Add rotation toggle functionality
+      document.getElementById('enableRotation').addEventListener('change', function() {
+        rotationEnabled = this.checked;
+      });
+
+      // Create a zoom behavior
+      const zoom = d3.zoom()
+        .scaleExtent([0.2, 5])
+        .translateExtent([[-width*2, -height*2], [width*2, height*2]])
+        .on("zoom", (event) => {
+          currentTransform = {
+            x: event.transform.x,
+            y: event.transform.y,
+            k: event.transform.k
+          };
+          applyTransform();
+        });
+      
+      // Apply zoom to SVG
+      svg.call(zoom)
+         .on("wheel", event => event.preventDefault())
+         .call(zoom.filter(event => {
+            return (event.button === 1) || 
+                   (event.type === 'wheel') || 
+                   (event.button === 0 && event.altKey);
+         }));
+      
+      // Update rotation hub
+      rotationHub.x = center.x;
+      rotationHub.y = center.y;
+      
+      // Add rotation functionality
+      svg.on("mousedown", (event) => {
+        if (rotationEnabled && event.button === 0 && !event.altKey) {
+          isDragging = true;
+          const mouseX = event.clientX - rotationHub.x;
+          const mouseY = event.clientY - rotationHub.y;
+          startAngle = Math.atan2(mouseY, mouseX) - rotationAngle;
+          event.preventDefault();
+        }
+      });
+      
+      svg.on("mousemove", (event) => {
+        if (isDragging) {
+          const mouseX = event.clientX - rotationHub.x;
+          const mouseY = event.clientY - rotationHub.y;
+          rotationAngle = Math.atan2(mouseY, mouseX) - startAngle;
+          applyTransform();
+          event.preventDefault();
+        }
+      });
+      
+      svg.on("mouseup", () => {
+        isDragging = false;
+      });
+
+      // Create zone circles
+      const exitRingRadius = Math.min(width, height) * 0.4;
+      const zoneRadii = [25, 100, 180, 260, 340, 400, exitRingRadius];
+      const zoneColors = [
+        "#ff5e5e", // Entry - Red
+        "#50c4fa", // Data Processing - Blue
+        "#42b883", // Core Agents - Green
+        "#e9c46a", // Planning & Reasoning - Yellow
+        "#8a5cf5", // Evaluation - Purple
+        "#f46036", // Decision Matrix - Orange
+        "#ff006e"  // Exit Points - Pink
+      ];
+      
+      // Create circles
+      zoneRadii.forEach((radius, i) => {
+        container.append("circle")
+          .attr("class", "zone-circle")
+          .attr("cx", center.x)
+          .attr("cy", center.y)
+          .attr("r", radius)
+          .attr("stroke", zoneColors[i])
+          .attr("stroke-opacity", 0.4);
+      });
+      
+      // Add exit ring
+      container.append("circle")
+        .attr("class", "exit-ring")
+        .attr("cx", center.x)
+        .attr("cy", center.y)
+        .attr("r", exitRingRadius);
+      
+      // Define orbit radii
+      const orbitRadii = [
+        25,        // Layer 0 - Entry point at center
+        100,       // Layer 1
+        180,       // Layer 2
+        260,       // Layer 3
+        340,       // Layer 4
+        400,       // Layer 5
+        exitRingRadius  // Layer 6 - Exit points
+      ];
+      
+      // Create visible orbit rings
+      const orbitGroup = container.append("g")
+        .attr("class", "orbit-rings");
+      
+      orbitRadii.forEach((radius, i) => {
+        orbitGroup.append("circle")
+          .attr("class", "orbit-ring")
+          .attr("cx", center.x)
+          .attr("cy", center.y)
+          .attr("r", radius)
+          .attr("stroke", zoneColors[i])
+          .attr("stroke-opacity", 0.4 - (i * 0.04))
+          .attr("stroke-width", i === 0 ? 0 : 0.8)
+          .attr("stroke-dasharray", "3,3");
+      });
+      
+      // Create a color scale
+      const colorScale = d3.scaleOrdinal()
+        .domain([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        .range([
+          "#5ebbff", // Entry - Light Blue
+          "#50c4fa", // Data Processing - Blue
+          "#42b883", // Core Agents - Green
+          "#e9c46a", // Planning & Reasoning - Yellow
+          "#8a5cf5", // Evaluation - Purple
+          "#f46036", // Decision Matrix - Orange
+          "#3a86ff", // Feature Extraction - Bright Blue
+          "#fb5607", // Attention Mechanism - Bright Orange
+          "#4cc9f0", // Memory System - Light Blue
+          "#ff006e"  // Exit Points - Pink
+        ]);
+      
+      // Set up orbital parameters
+      nodes.forEach(node => {
+        node.radius = orbitRadii[node.layer];
+        const nodesInLayer = nodes.filter(n => n.layer === node.layer).length;
+        const angleStep = (2 * Math.PI) / nodesInLayer;
+        const index = nodes.filter(n => n.layer === node.layer).findIndex(n => n.id === node.id);
+        node.angle = index * angleStep + (node.layer > 0 ? Math.random() * 0.2 : 0);
+        
+        if (node.layer === 0) {
+          node.speed = 0; // Entry point doesn't move
+        } else {
+          // Increased by another 10% (now ~20% faster than original 0.0006 value)
+          const baseSpeed = 0.00373 * (1 - (node.layer * 0.12));
+          
+          // Set direction based on layer number (odd layers go clockwise, even go counter-clockwise)
+          const direction = node.layer % 2 === 0 ? 1 : -1;
+          
+          node.speed = direction * baseSpeed * (0.8 + Math.random() * 0.4);
+        }
+        
+        // Set initial position
+        node.x = center.x + node.radius * Math.cos(node.angle);
+        node.y = center.y + node.radius * Math.sin(node.angle);
+      });
+
+      // Create tooltip
+      const tooltip = d3.select(".tooltip");
+      
+      // Create links with higher visibility
+      const link = container.append("g")
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("class", "link")
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y)
+        .attr("stroke", d => d3.interpolate(colorScale(d.source.group), colorScale(d.target.group))(0.5))
+        .attr("stroke-opacity", 0.5) // Increased opacity
+        .attr("stroke-width", 1.2);  // Increased width
+      
+      // Create nodes with border for visibility
+      const node = container.append("g")
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("class", "node")
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y)
+        .attr("r", d => 12 - d.layer * 1.2)
+        .attr("fill", d => colorScale(d.group))
+        .attr("stroke", "#ffffff")
+        .attr("stroke-width", 2)
+        .on("mouseover", (event, d) => {
+          // Highlight connected links and nodes
+          d3.selectAll(".link")
+            .attr("stroke-opacity", l => (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.1)
+            .attr("stroke-width", l => (l.source.id === d.id || l.target.id === d.id) ? 3 : 1);
+            
+          d3.selectAll(".node")
+            .attr("opacity", n => {
+              const isConnected = links.some(l => 
+                (l.source.id === d.id && l.target.id === n.id) || 
+                (l.source.id === n.id && l.target.id === d.id) ||
+                n.id === d.id
+              );
+              return isConnected ? 1 : 0.4;
+            });
+            
+          // Show tooltip on hover
+          tooltip
+            .style("opacity", 1)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px")
+            .html(`
+              <strong>${d.label}</strong><br>
+              <small>Group: ${GROUP_NAMES[d.group]}</small><br>
+              <small>Layer: ${d.layer}</small><br>
+              <p>${d.desc}</p>
+            `);
+        })
+        .on("mousemove", (event, d) => {
+          // Update tooltip position when mouse moves
+          tooltip
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px");
+        })
+        .on("mouseout", () => {
+          // Reset highlighting on mouseout
+          d3.selectAll(".link")
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-width", d => {
+              const minLayer = Math.min(d.source.layer, d.target.layer);
+              return 1.5 - minLayer * 0.15;
+            });
+          d3.selectAll(".node").attr("opacity", 1);
+          
+          // Hide tooltip with a delay for better UX
+          setTimeout(() => {
+            tooltip.style("opacity", 0);
+          }, 500);
+        })
+        .on("click", (event, d) => {
+          // Prevent event from bubbling up
+          event.stopPropagation();
+          
+          // Select this node (deselect all others)
+          d3.selectAll(".node").classed("selected", false);
+          d3.select(event.currentTarget).classed("selected", true);
+          
+          // Show tooltip in a fixed position that doesn't follow the mouse
+          tooltip
+            .style("opacity", 1)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px")
+            .html(`
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>${d.label}</strong>
+                <span class="close-tooltip" style="cursor:pointer; font-weight:bold; padding:0 4px;">&times;</span>
+              </div>
+              <small>Group: ${GROUP_NAMES[d.group]}</small><br>
+              <small>Layer: ${d.layer}</small><br>
+              <p>${d.desc}</p>
+            `);
+            
+          // Add click handler to the close button
+          tooltip.select(".close-tooltip").on("click", () => {
+            // Hide tooltip and deselect node
+            tooltip.style("opacity", 0);
+            d3.selectAll(".node").classed("selected", false);
+            // Stop event propagation
+            d3.event?.stopPropagation();
+          });
+        })
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+      
+      // Add labels
+      const label = container.append("g")
+        .selectAll("text")
+        .data(nodes)
+        .join("text")
+        .attr("class", "node-label")
+        .text(d => d.label)
+        .attr("x", d => d.x)
+        .attr("y", d => d.y)
+        .attr("text-anchor", "middle")
+        .attr("dy", d => -5 - d.layer * 0.2 + "px")
+        .attr("font-size", d => 11 - d.layer * 0.5 + "px");
+      
+      // Add layer labels with direction indicators
+      const layerLabels = [
+        { text: "Entry", radius: 0, group: 0 },
+        { text: "Processing ↺", radius: orbitRadii[1], group: 1 }, // Counter-clockwise
+        { text: "Core Agents ↻", radius: orbitRadii[2], group: 2 }, // Clockwise 
+        { text: "Planning ↺", radius: orbitRadii[3], group: 3 }, // Counter-clockwise
+        { text: "Evaluation ↻", radius: orbitRadii[4], group: 4 }, // Clockwise
+        { text: "Decision Matrix ↺", radius: orbitRadii[5], group: 5 }, // Counter-clockwise
+        { text: "Exit Ring ↻", radius: exitRingRadius, group: 9 } // Clockwise
+      ];
+      
+      const layerLabelGroup = container.append("g")
+        .attr("pointer-events", "none");
+      
+      layerLabelGroup.selectAll("text")
+        .data(layerLabels)
+        .join("text")
+        .attr("x", center.x)
+        .attr("y", d => center.y - d.radius - 10)
+        .attr("text-anchor", "middle")
+        .attr("fill", "white")
+        .attr("font-size", "11px")
+        .attr("font-weight", "bold")
+        .attr("fill", d => {
+          const baseColor = colorScale(d.group);
+          return d3.color(baseColor).copy({opacity: 0.8});
+        })
+        .attr("stroke", "rgba(0,0,0,0.5)")
+        .attr("stroke-width", "0.5px")
+        .text(d => d.text);
+
+      // Add legend
+      const legendX = width - 160;
+      const legendY = 20;
+      const legendWidth = 140;
+      const legendHeight = GROUP_NAMES.length * 20 + 10;
+      const padding = 10;
+      
+      const legend = svg.append("g")
+        .attr("pointer-events", "none")
+        .attr("transform", `translate(${legendX}, ${legendY})`);
+      
+      legend.append("rect")
+        .attr("class", "legend-box")
+        .attr("x", -padding)
+        .attr("y", -padding)
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .attr("filter", "drop-shadow(0px 3px 5px rgba(0,0,0,0.3))");
+      
+      legend.append("text")
+        .attr("x", legendWidth/2 - padding)
+        .attr("y", 4)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "12px")
+        .attr("font-weight", "bold")
+        .attr("fill", "white")
+        .text("Node Categories");
+      
+      GROUP_NAMES.forEach((name, i) => {
+        const g = legend.append("g")
+          .attr("transform", `translate(0, ${i * 20 + 20})`);
+          
+        g.append("circle")
+          .attr("r", 6)
+          .attr("fill", colorScale(i));
+          
+        g.append("text")
+          .attr("x", 15)
+          .attr("y", 4)
+          .attr("font-size", "10px")
+          .attr("fill", "white") // Ensuring text is white
+          .text(name);
+      });
+
+      // Track highlighted group - now using global variables
+      
+      // Drag functions
+      function dragstarted(event, d) {
+        d._originalRadius = d.radius;
+        d._originalAngle = d.angle;
+        d._originalSpeed = d.speed;
+        d.speed = 0;
+        d.isDragging = true;
+      }
+      
+      function dragged(event, d) {
+        d.x = event.x;
+        d.y = event.y;
+        
+        const dx = d.x - center.x;
+        const dy = d.y - center.y;
+        d.radius = Math.sqrt(dx * dx + dy * dy);
+        d.angle = Math.atan2(dy, dx);
+        if (d.angle < 0) d.angle += 2 * Math.PI;
+        
+        // Update position
+        d3.select(this)
+          .attr("cx", d.x)
+          .attr("cy", d.y);
+        
+        // Update label position
+        label.filter(l => l.id === d.id)
+          .attr("x", d.x)
+          .attr("y", d.y);
+        
+        // Update connected links
+        link
+          .filter(l => l.source.id === d.id || l.target.id === d.id)
+          .attr("x1", l => l.source.id === d.id ? d.x : l.source.x)
+          .attr("y1", l => l.source.id === d.id ? d.y : l.source.y)
+          .attr("x2", l => l.target.id === d.id ? d.x : l.target.x)
+          .attr("y2", l => l.target.id === d.id ? d.y : l.target.y);
+      }
+      
+      function dragended(event, d) {
+        d.isDragging = false;
+        
+        if (d.layer === 0) {
+          d.x = center.x;
+          d.y = center.y;
+          return;
+        }
+        
+        d.radius = d._originalRadius;
+        d.speed = d._originalSpeed;
+      }
+      
+      // Highlight function (setting the global function)
+      highlightNodeGroup = function(groupId) {
+        if (highlightTimeout) {
+          clearTimeout(highlightTimeout);
+        }
+        
+        if (highlightedGroup === groupId) {
+          d3.selectAll(".node").attr("opacity", 1);
+          d3.selectAll(".link")
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-width", d => {
+              const minLayer = Math.min(d.source.layer, d.target.layer);
+              return 1.5 - minLayer * 0.15;
+            });
+          highlightedGroup = null;
+          createSmokeEffect();
+          return;
+        }
+        
+        highlightedGroup = groupId;
+        
+        d3.selectAll(".node")
+          .attr("opacity", d => d.group === groupId ? 1 : 0.2);
+        
+        d3.selectAll(".link")
+          .attr("stroke-opacity", d => (d.source.group === groupId || d.target.group === groupId) ? 0.8 : 0.1)
+          .attr("stroke-width", d => (d.source.group === groupId || d.target.group === groupId) ? 2 : 0.5);
+        
+        createSmokeEffect();
+        
+        highlightTimeout = setTimeout(() => {
+          d3.selectAll(".node").attr("opacity", 1);
+          d3.selectAll(".link")
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-width", d => {
+              const minLayer = Math.min(d.source.layer, d.target.layer);
+              return 1.5 - minLayer * 0.15;
+            });
+          highlightedGroup = null;
+          createSmokeEffect();
+        }, 5000);
+      }
+
+      // Apply transform (making it global by using the previously declared variable)
+      applyTransform = function() {
+        const rotationTransform = `rotate(${rotationAngle * 180 / Math.PI}, ${rotationHub.x}, ${rotationHub.y})`;
+        container.attr("transform", 
+          `translate(${currentTransform.x},${currentTransform.y}) scale(${currentTransform.k}) ${rotationTransform}`
+        );
+      }
+      
+      // Create smoke effect
+      function createSmokeEffect() {
+        container.selectAll(".smoke-particle").remove();
+        
+        orbitRadii.forEach((radius, zoneIndex) => {
+          const zoneColor = zoneColors[zoneIndex];
+          const orbitNodes = nodes.filter(n => n.layer === zoneIndex);
+          
+          const groupsForZone = [];
+          if (zoneIndex === 0) groupsForZone.push(0);
+          if (zoneIndex === 1) groupsForZone.push(1);
+          if (zoneIndex === 2) groupsForZone.push(2, 6);
+          if (zoneIndex === 3) groupsForZone.push(3, 7);
+          if (zoneIndex === 4) groupsForZone.push(4, 8);
+          if (zoneIndex === 5) groupsForZone.push(5);
+          if (zoneIndex === 6) groupsForZone.push(9);
+          
+          const isHighlighted = highlightedGroup !== null && groupsForZone.includes(highlightedGroup);
+          
+          orbitNodes.forEach(node => {
+            if (node.layer === 0) return;
+            
+            const particleCount = isHighlighted ? 12 : 8;
+            const nodeColor = colorScale(node.group);
+            
+            for (let i = 0; i < particleCount; i++) {
+              // Direction-aware trail (trail follows rotation direction)
+              const trailDirection = node.speed > 0 ? -1 : 1;
+              const trailDistance = (i / particleCount) * Math.PI / 2;
+              const particleAngle = node.angle + (trailDirection * trailDistance);
+              const radiusVariation = Math.random() * 10 - 5;
+              const particleRadius = node.radius + radiusVariation;
+              
+              const x = center.x + particleRadius * Math.cos(particleAngle);
+              const y = center.y + particleRadius * Math.sin(particleAngle);
+              
+              const sizeMultiplier = isHighlighted ? 1.5 : 1;
+              const size = sizeMultiplier * (20 + (particleCount - i) * 2);
+              
+              const baseOpacity = isHighlighted ? 0.15 : 0.06;
+              const opacityFalloff = (particleCount - i) / particleCount;
+              const opacity = baseOpacity * opacityFalloff;
+              
+              const blendedColor = d3.interpolate(nodeColor, zoneColor)(0.7);
+              
+              const smokeParticle = container.append("circle")
+                .attr("class", "smoke-particle")
+                .attr("cx", x)
+                .attr("cy", y)
+                .attr("r", size)
+                .attr("fill", blendedColor)
+                .attr("opacity", opacity);
+                
+              if (isHighlighted) {
+                smokeParticle.attr("filter", "url(#glow)");
+              }
+            }
+          });
+          
+          if (zoneIndex > 0) {
+            const ambientParticleCount = isHighlighted ? 15 : 8;
+            
+            for (let i = 0; i < ambientParticleCount; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const radiusVariation = Math.random() * 30 - 15;
+              const particleRadius = radius + radiusVariation;
+              
+              const x = center.x + particleRadius * Math.cos(angle);
+              const y = center.y + particleRadius * Math.sin(angle);
+              
+              const size = 15 + Math.random() * 20;
+              
+              const opacity = isHighlighted ? 
+                            (0.12 + Math.random() * 0.05) : 
+                            (0.03 + Math.random() * 0.02);
+              
+              const smokeParticle = container.append("circle")
+                .attr("class", "smoke-particle")
+                .attr("cx", x)
+                .attr("cy", y)
+                .attr("r", size)
+                .attr("fill", zoneColor)
+                .attr("opacity", opacity);
+                
+              if (isHighlighted) {
+                smokeParticle.attr("filter", "url(#glow)");
+              }
+            }
+          }
+        });
+      }
+
+      // Animation loop
+      let lastFrameTime = 0;
+      function updateOrbits(currentTime = 0) {
+        // Calculate delta time for smooth animation regardless of frame rate
+        const deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        
+        // Only update if deltaTime is reasonable (avoid huge jumps after tab switch)
+        const frameMultiplier = deltaTime > 0 && deltaTime < 100 ? deltaTime / 16.67 : 1;
+        
+        // Update node positions
+        nodes.forEach(node => {
+          if (node.layer > 0 && !node.isDragging) {
+            // Apply frameMultiplier for consistent speed across different frame rates
+            node.angle += node.speed * frameMultiplier;
+            
+            // Handle angle wrap-around for both clockwise and counter-clockwise rotation
+            if (node.angle >= 2 * Math.PI) {
+              node.angle -= 2 * Math.PI;
+            } else if (node.angle < 0) {
+              node.angle += 2 * Math.PI;
+            }
+            
+            node.x = center.x + node.radius * Math.cos(node.angle);
+            node.y = center.y + node.radius * Math.sin(node.angle);
+          }
+        });
+        
+        // Update node positions in the DOM
+        d3.selectAll(".node")
+          .attr("cx", d => d.x)
+          .attr("cy", d => d.y);
+        
+        // Update label positions
+        d3.selectAll(".node-label")
+          .attr("x", d => d.x)
+          .attr("y", d => d.y);
+          
+        // Update link positions
+        d3.selectAll(".link")
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+        
+        // Update smoke effect
+        if (currentTime - lastSmokeUpdate > smokeUpdateInterval) {
+          createSmokeEffect();
+          lastSmokeUpdate = currentTime;
+        }
+        
+        requestAnimationFrame(updateOrbits);
+      }
+      
+      let lastSmokeUpdate = 0;
+      const smokeUpdateInterval = 2000;
+      
+      // Create initial smoke effect
+      createSmokeEffect();
+      
+      // Start animation
+      updateOrbits();
+      
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        const newWidth = window.innerWidth;
+        const newHeight = window.innerHeight;
+        center.x = newWidth / 2;
+        center.y = newHeight / 2;
+        
+        rotationHub.x = center.x;
+        rotationHub.y = center.y;
+        
+        // Update all elements that depend on center position
+        d3.selectAll(".zone-circle")
+          .attr("cx", center.x)
+          .attr("cy", center.y);
+        
+        d3.select(".exit-ring")
+          .attr("cx", center.x)
+          .attr("cy", center.y);
+        
+        d3.selectAll(".orbit-ring")
+          .attr("cx", center.x)
+          .attr("cy", center.y);
+        
+        layerLabelGroup.selectAll("text")
+          .attr("x", center.x)
+          .attr("y", d => center.y - d.radius - 10);
+        
+        createSmokeEffect();
+        
+        legend.attr("transform", `translate(${newWidth - 160}, ${20})`);
+      });
+      
+      // Set up keyboard navigation constants
+      const zoomStep = 0.2;
+      const panStep = 20;
+      const rotateStep = Math.PI / 36;
+
+      // Debug logging
+      console.log('Visualization initialized');
+      console.log('Nodes:', nodes.length);
+      console.log('Links:', links.length);
+      console.log('SVG size:', width, height);
+      
+      // Log sample node and link data
+      console.log('Sample node:', nodes[0]);
+      console.log('Node positions:', nodes.map(n => ({ id: n.id, x: n.x, y: n.y })));
+      if (links.length > 0) console.log('Sample link:', links[0]);
+      
+      // Add visible debugging elements
+      container.append("rect")
+        .attr("x", center.x - 10)
+        .attr("y", center.y - 10)
+        .attr("width", 20)
+        .attr("height", 20)
+        .attr("fill", "red")
+        .attr("opacity", 0.5);
+        
+      // Log created elements count  
+      console.log('Created DOM elements:', 
+        'Nodes:', d3.selectAll('.node').size(),
+        'Links:', d3.selectAll('.link').size(),
+        'Labels:', d3.selectAll('.node-label').size());
+        
+      // Set up controls toggle functionality
+      const controlsPanel = document.getElementById('controlsPanel');
+      const controlsToggle = document.getElementById('controlsToggle');
+      
+      // Default state - controls shown
+      let controlsVisible = true;
+      
+      function toggleControls() {
+        controlsVisible = !controlsVisible;
+        
+        if (controlsVisible) {
+          controlsPanel.classList.remove('folded');
+          controlsToggle.textContent = 'Hide Controls ▼';
+        } else {
+          controlsPanel.classList.add('folded');
+          controlsToggle.textContent = 'Show Controls ▲';
+        }
+      }
+      
+      // Toggle button click handler
+      controlsToggle.addEventListener('click', toggleControls);
+      
+      // Initialize - start with controls visible
+      controlsToggle.textContent = 'Hide Controls ▼';
+    });
+  </script>
+</body>
+</html>
