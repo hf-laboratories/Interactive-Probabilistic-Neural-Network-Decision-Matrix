@@ -199,7 +199,14 @@
     </p>
     <p>
       Each layer's connectivity follows its own probability distribution, creating a unique but reproducible network topology that balances density and efficiency.
+      Groups represent functional modules or subsystems, while layers represent processing stages. 
+      Multiple functional modules can (and often do) co-exist at the same processing stage, so different groups share layers by design to enable parallel, specialized processing within each stage.
     </p>
+  <p>
+    Created by: Alix @ HF Labs
+  </p>
+  
+    
   </div>
   
   <svg class="hf-logo" width="60" height="48" viewBox="0 0 70 80">
@@ -478,7 +485,7 @@
         "Feature Extraction", // 6
         "Attention Mechanism", // 7
         "Memory System", // 8
-        "Exit Points" // 9
+        "Exit Ring" // 9
       ];
 
       const nodes = [
@@ -757,7 +764,7 @@
           .attr("cy", center.y)
           .attr("r", radius)
           .attr("stroke", zoneColors[i])
-          .attr("stroke-opacity", 0.4);
+          .attr("stroke-opacity", 0.6);
       });
       
       // Add exit ring
@@ -822,10 +829,10 @@
           node.speed = 0; // Entry point doesn't move
         } else {
           // Increased by another 10% (now ~20% faster than original 0.0006 value)
-          const baseSpeed = 0.00373 * (1 - (node.layer * 0.12));
+          const baseSpeed = 0.004 * (1 - (node.layer * 0.12));
           
-          // Set direction based on layer number (odd layers go clockwise, even go counter-clockwise)
-          const direction = node.layer % 2 === 0 ? 1 : -1;
+          // Set direction based on group number (used to be layer number)(odd layers go clockwise, even go counter-clockwise)
+          const direction = node.group % 2 === 0 ? 1 : -1;
           
           node.speed = direction * baseSpeed * (0.8 + Math.random() * 0.4);
         }
@@ -1289,7 +1296,7 @@
       }
       
       let lastSmokeUpdate = 0;
-      const smokeUpdateInterval = 2000;
+      const smokeUpdateInterval = 1000;
       
       // Create initial smoke effect
       createSmokeEffect();
