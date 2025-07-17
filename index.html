@@ -818,30 +818,43 @@
         ]);
       
       // Set up orbital parameters
-      nodes.forEach(node => {
-        node.radius = orbitRadii[node.layer];
-        const nodesInLayer = nodes.filter(n => n.layer === node.layer).length;
-        const angleStep = (2 * Math.PI) / nodesInLayer;
-        const index = nodes.filter(n => n.layer === node.layer).findIndex(n => n.id === node.id);
-        node.angle = index * angleStep + (node.layer > 0 ? Math.random() * 0.2 : 0);
-        
-        if (node.layer === 0) {
-          node.speed = 0; // Entry point doesn't move
-        } else {
-          // Increased by another 10% (now ~20% faster than original 0.0006 value)
-          const baseSpeed = 0.004 * (1 - (node.layer * 0.12));
-          
-          // Set direction based on group number (used to be layer number)(odd layers go clockwise, even go counter-clockwise)
-          const direction = node.group % 2 === 0 ? 1 : -1;
-          
-          node.speed = direction * baseSpeed * (0.8 + Math.random() * 0.4);
-        }
-        
-        // Set initial position
-        node.x = center.x + node.radius * Math.cos(node.angle);
-        node.y = center.y + node.radius * Math.sin(node.angle);
-      });
+// Step 1: Build direction map for each (layer, group) pair
+const layerGroups = {};
+nodes.forEach(node => {
+  const layer = node.layer;
+  const group = node.group;
+  if (!layerGroups[layer]) layerGroups[layer] = [];
+  if (!layerGroups[layer].includes(group)) layerGroups[layer].push(group);
+});
 
+// Step 2: For each layer, assign alternating directions to each group
+const layerGroupDirections = {};
+Object.entries(layerGroups).forEach(([layer, groups]) => {
+  groups.forEach((group, i) => {
+    // Alternate: first group in layer = 1 (clockwise), next = -1, etc.
+    layerGroupDirections[`${layer},${group}`] = (i % 2 === 0) ? 1 : -1;
+  });
+});
+
+// Step 3: Assign direction and speed to each node based on its (layer, group)
+nodes.forEach(node => {
+  node.radius = orbitRadii[node.layer];
+  const nodesInLayer = nodes.filter(n => n.layer === node.layer).length;
+  const angleStep = (2 * Math.PI) / nodesInLayer;
+  const index = nodes.filter(n => n.layer === node.layer).findIndex(n => n.id === node.id);
+  node.angle = index * angleStep + (node.layer > 0 ? Math.random() * 0.2 : 0);
+
+  if (node.layer === 0) {
+    node.speed = 0; // Entry point doesn't move
+  } else {
+    const baseSpeed = 0.004 * (1 - (node.layer * 0.12));
+    const direction = layerGroupDirections[`${node.layer},${node.group}`];
+    node.speed = direction * baseSpeed * (0.8 + Math.random() * 0.4);
+  }
+
+  node.x = center.x + node.radius * Math.cos(node.angle);
+  node.y = center.y + node.radius * Math.sin(node.angle);
+});
       // Create tooltip
       const tooltip = d3.select(".tooltip");
       
@@ -975,11 +988,16 @@
         { text: "Entry", radius: 0, group: 0 },
         { text: "Processing ↺", radius: orbitRadii[1], group: 1 }, // Counter-clockwise
         { text: "Core Agents ↻", radius: orbitRadii[2], group: 2 }, // Clockwise 
-        { text: "Planning ↺", radius: orbitRadii[3], group: 3 }, // Counter-clockwise
+        { text: "Feature Extraction ↺", radius: orbitRadii[2], group: 6 }, // Counter-Clockwise 
+        { text: "Planning & Reasoning ↺", radius: orbitRadii[3], group: 3 }, // Counter-clockwise 
+        { text: "Attention Mechanism ↻", radius: orbitRadii[3], group: 7 }, // Counter-clockwise 
         { text: "Evaluation ↻", radius: orbitRadii[4], group: 4 }, // Clockwise
+        { text: "Memory System ↺", radius: orbitRadii[4], group: 8 },
         { text: "Decision Matrix ↺", radius: orbitRadii[5], group: 5 }, // Counter-clockwise
         { text: "Exit Ring ↻", radius: exitRingRadius, group: 9 } // Clockwise
       ];
+        
+
       
       const layerLabelGroup = container.append("g")
         .attr("pointer-events", "none");
