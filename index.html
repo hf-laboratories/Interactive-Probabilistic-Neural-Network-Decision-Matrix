@@ -1021,9 +1021,9 @@ nodes.forEach(node => {
 
       // Add legend
       const legendX = width - 160;
-      const legendY = 20;
+      const legendY = 50;
       const legendWidth = 140;
-      const legendHeight = GROUP_NAMES.length * 20 + 10;
+      const legendHeight = GROUP_NAMES.length * 20 + 10 + 20;
       const padding = 10;
       
       const legend = svg.append("g")
@@ -1195,7 +1195,7 @@ nodes.forEach(node => {
             for (let i = 0; i < particleCount; i++) {
               // Direction-aware trail (trail follows rotation direction)
               const trailDirection = node.speed > 0 ? -1 : 1;
-              const trailDistance = (i / particleCount) * Math.PI / 2;
+              const trailDistance = (i * 1.5 / particleCount) * Math.PI / 2;
               const particleAngle = node.angle + (trailDirection * trailDistance);
               const radiusVariation = Math.random() * 10 - 5;
               const particleRadius = node.radius + radiusVariation;
